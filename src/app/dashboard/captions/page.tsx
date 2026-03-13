@@ -57,7 +57,7 @@ export default function CaptionsPage() {
         const total = v.up + v.down;
         const net = v.up - v.down;
         const controversy = total >= 2 ? total * (1 - Math.abs(v.up - v.down) / total) : 0;
-        const wordCount = c.content.trim().split(/\s+/).length;
+        const wordCount = (c.content || "").trim().split(/\s+/).length;
 
         const row: CaptionRow = {
           id: c.id,

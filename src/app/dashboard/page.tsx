@@ -69,7 +69,7 @@ export default async function DashboardPage() {
     "16+": { totalNet: 0, count: 0 },
   };
   captions.forEach((c) => {
-    const words = c.content.trim().split(/\s+/).length;
+    const words = (c.content || "").trim().split(/\s+/).length;
     const scores = captionScores[c.id];
     if (!scores) return;
     const net = scores.up - scores.down;
@@ -130,7 +130,7 @@ export default async function DashboardPage() {
     "That feeling": 0, "The ": 0, "Other": 0,
   };
   captions.forEach((c) => {
-    const text = c.content.trim();
+    const text = (c.content || "").trim();
     if (text.startsWith("POV:")) formats["POV:"]++;
     else if (text.startsWith("Nobody:")) formats["Nobody:"]++;
     else if (text.startsWith("When ")) formats["When "]++;
