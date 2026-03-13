@@ -23,9 +23,14 @@ export async function middleware(request: NextRequest) {
     }
   );
 
-  const { data: { user } } = await supabase.auth.getUser();
-
   const path = request.nextUrl.pathname;
+
+  // Dev-only auth bypass (never set this in production)
+  if (process.env.BYPASS_AUTH === "true") {
+    return response;
+  }
+
+  const { data: { user } } = await supabase.auth.getUser();
 
   // Don't gate the login page or auth callback
   if (path === "/" || path === "/auth/callback") {

@@ -131,17 +131,60 @@ export default function ImagesPage() {
 }
 
 function CreateImageModal({ supabase, onClose, onCreated }: { supabase: ReturnType<typeof createSupabaseBrowserClient>; onClose: () => void; onCreated: () => void }) {
+  const [mode, setMode] = useState<"url" | "upload">("url");
   const [url, setUrl] = useState("");
+  const [file, setFile] = useState<File | null>(null);
   const [desc, setDesc] = useState("");
   const [isPublic, setIsPublic] = useState(true);
   const [saving, setSaving] = useState(false);
+  const [status, setStatus] = useState("");
+
+  const handleUploadFile = async (): Promise<string | null> => {
+    if (!file) return null;
+    setStatus("Getting upload URL...");
+    const { data: sessionData } = await supabase.auth.getSession();
+    const token = sessionData.session?.access_token;
+    if (!token) { setStatus("Not authenticated"); return null; }
+    const headers = { Authorization: `Bearer ${token}`, "Content-Type": "application/json" };
+
+    const presignRes = await fetch("https://api.almostcrackd.ai/pipeline/generate-presigned-url", {
+      method: "POST", headers, body: JSON.stringify({ contentType: file.type }),
+    });
+    if (!presignRes.ok) { setStatus("Failed to get presigned URL"); return null; }
+    const { presignedUrl, cdnUrl } = await presignRes.json();
+
+    setStatus("Uploading file...");
+    const uploadRes = await fetch(presignedUrl, {
+      method: "PUT", headers: { "Content-Type": file.type }, body: file,
+    });
+    if (!uploadRes.ok) { setStatus("Upload failed"); return null; }
+
+    setStatus("Registering image...");
+    const registerRes = await fetch("https://api.almostcrackd.ai/pipeline/upload-image-from-url", {
+      method: "POST", headers, body: JSON.stringify({ imageUrl: cdnUrl, isCommonUse: false }),
+    });
+    if (!registerRes.ok) { setStatus("Failed to register image"); return null; }
+
+    return cdnUrl;
+  };
 
   const handleCreate = async () => {
-    if (!url.trim()) return;
+    if (mode === "url" && !url.trim()) return;
+    if (mode === "upload" && !file) return;
     setSaving(true);
+    setStatus("");
+
+    let finalUrl = url.trim();
+    if (mode === "upload") {
+      const uploaded = await handleUploadFile();
+      if (!uploaded) { setSaving(false); return; }
+      finalUrl = uploaded;
+    }
+
+    setStatus("Saving to database...");
     const now = new Date().toISOString();
     await supabase.from("images").insert({
-      url: url.trim(),
+      url: finalUrl,
       image_description: desc.trim() || null,
       is_public: isPublic,
       created_datetime_utc: now,
@@ -151,15 +194,34 @@ function CreateImageModal({ supabase, onClose, onCreated }: { supabase: ReturnTy
     onClose();
   };
 
+  const canSubmit = mode === "url" ? url.trim() !== "" : file !== null;
+
   return (
     <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50" onClick={onClose}>
       <div className="bg-zinc-900 border border-pink-500/20 rounded-2xl p-6 max-w-md w-full mx-4" onClick={(e) => e.stopPropagation()}>
         <h2 className="text-lg font-semibold text-white mb-4">Add Image</h2>
         <div className="space-y-4">
-          <div>
-            <label className="text-sm text-gray-400 mb-1 block">Image URL *</label>
-            <input type="text" value={url} onChange={(e) => setUrl(e.target.value)} className="w-full bg-zinc-950 border border-zinc-800 rounded-xl px-4 py-2 text-white text-sm focus:outline-none focus:border-pink-500/40" placeholder="https://..." />
+          <div className="flex gap-2 mb-2">
+            <button onClick={() => setMode("url")} className={`text-sm px-3 py-1.5 rounded-lg transition-colors ${mode === "url" ? "bg-pink-500/20 text-pink-400 border border-pink-500/30" : "text-gray-400 hover:text-white"}`}>
+              URL
+            </button>
+            <button onClick={() => setMode("upload")} className={`text-sm px-3 py-1.5 rounded-lg transition-colors ${mode === "upload" ? "bg-pink-500/20 text-pink-400 border border-pink-500/30" : "text-gray-400 hover:text-white"}`}>
+              Upload File
+            </button>
           </div>
+          {mode === "url" ? (
+            <div>
+              <label className="text-sm text-gray-400 mb-1 block">Image URL *</label>
+              <input type="text" value={url} onChange={(e) => setUrl(e.target.value)} className="w-full bg-zinc-950 border border-zinc-800 rounded-xl px-4 py-2 text-white text-sm focus:outline-none focus:border-pink-500/40" placeholder="https://..." />
+            </div>
+          ) : (
+            <div>
+              <label className="text-sm text-gray-400 mb-1 block">Image File *</label>
+              <input type="file" accept="image/*" onChange={(e) => setFile(e.target.files?.[0] || null)}
+                className="w-full bg-zinc-950 border border-zinc-800 rounded-xl px-4 py-2 text-white text-sm file:mr-4 file:py-1 file:px-3 file:rounded-lg file:border-0 file:text-sm file:bg-pink-500/20 file:text-pink-400 hover:file:bg-pink-500/30" />
+              {file && <p className="text-xs text-gray-500 mt-1">{file.name} ({(file.size / 1024).toFixed(0)} KB)</p>}
+            </div>
+          )}
           <div>
             <label className="text-sm text-gray-400 mb-1 block">Description</label>
             <textarea value={desc} onChange={(e) => setDesc(e.target.value)} className="w-full bg-zinc-950 border border-zinc-800 rounded-xl px-4 py-2 text-white text-sm focus:outline-none focus:border-pink-500/40 resize-none" rows={3} />
@@ -168,10 +230,11 @@ function CreateImageModal({ supabase, onClose, onCreated }: { supabase: ReturnTy
             <input type="checkbox" checked={isPublic} onChange={(e) => setIsPublic(e.target.checked)} className="accent-pink-500" />
             Public
           </label>
+          {status && <p className="text-xs text-yellow-400">{status}</p>}
         </div>
         <div className="flex justify-end gap-3 mt-6">
           <button onClick={onClose} className="text-sm text-gray-400 hover:text-white px-4 py-2">Cancel</button>
-          <button onClick={handleCreate} disabled={saving || !url.trim()} className="bg-pink-500 hover:bg-pink-600 disabled:opacity-50 text-white text-sm px-4 py-2 rounded-xl font-medium transition-colors">
+          <button onClick={handleCreate} disabled={saving || !canSubmit} className="bg-pink-500 hover:bg-pink-600 disabled:opacity-50 text-white text-sm px-4 py-2 rounded-xl font-medium transition-colors">
             {saving ? "Creating..." : "Create"}
           </button>
         </div>
