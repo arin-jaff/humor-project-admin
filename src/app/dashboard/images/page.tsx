@@ -182,13 +182,14 @@ function CreateImageModal({ supabase, onClose, onCreated }: { supabase: ReturnTy
     }
 
     setStatus("Saving to database...");
-    const now = new Date().toISOString();
+    const { data: userData } = await supabase.auth.getUser();
+    const uid = userData.user?.id ?? null;
     await supabase.from("images").insert({
       url: finalUrl,
       image_description: desc.trim() || null,
       is_public: isPublic,
-      created_datetime_utc: now,
-      modified_datetime_utc: now,
+      created_by_user_id: uid,
+      modified_by_user_id: uid,
     });
     onCreated();
     onClose();
@@ -250,10 +251,11 @@ function EditImageModal({ supabase, image, onClose, onUpdated }: { supabase: Ret
 
   const handleUpdate = async () => {
     setSaving(true);
+    const { data: userData } = await supabase.auth.getUser();
     await supabase.from("images").update({
       image_description: desc.trim() || null,
       is_public: isPublic,
-      modified_datetime_utc: new Date().toISOString(),
+      modified_by_user_id: userData.user?.id ?? null,
     }).eq("id", image.id);
     onUpdated();
     onClose();

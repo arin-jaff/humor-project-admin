@@ -9,8 +9,13 @@ export default function HumorMixPage() {
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState("");
   const [editRow, setEditRow] = useState<Record<string, unknown> | null>(null);
+  const [userId, setUserId] = useState<string | null>(null);
 
   const TABLE = "humor_mix";
+
+  useEffect(() => {
+    supabase.auth.getUser().then(({ data }) => { setUserId(data.user?.id ?? null); });
+  }, [supabase]);
 
   const fetchData = useCallback(async () => {
     setLoading(true);
@@ -23,7 +28,7 @@ export default function HumorMixPage() {
 
   const columns = rows.length > 0 ? Object.keys(rows[0]) : [];
   const editableColumns = columns.filter(
-    (c) => !["id", "created_datetime_utc", "modified_datetime_utc", "created_at", "updated_at"].includes(c)
+    (c) => !["id", "created_datetime_utc", "modified_datetime_utc", "created_at", "updated_at", "created_by_user_id", "modified_by_user_id"].includes(c)
   );
 
   const filtered = search
@@ -88,7 +93,7 @@ export default function HumorMixPage() {
           initialValues={editRow}
           onClose={() => setEditRow(null)}
           onSave={async (values) => {
-            await supabase.from(TABLE).update({ ...values, modified_datetime_utc: new Date().toISOString() }).eq("id", editRow.id);
+            await supabase.from(TABLE).update({ ...values, modified_by_user_id: userId }).eq("id", editRow.id);
             fetchData();
           }}
         />

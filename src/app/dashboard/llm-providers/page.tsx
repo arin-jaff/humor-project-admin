@@ -11,8 +11,13 @@ export default function LlmProvidersPage() {
   const [showCreate, setShowCreate] = useState(false);
   const [editRow, setEditRow] = useState<Record<string, unknown> | null>(null);
   const [deleteRow, setDeleteRow] = useState<Record<string, unknown> | null>(null);
+  const [userId, setUserId] = useState<string | null>(null);
 
   const TABLE = "llm_providers";
+
+  useEffect(() => {
+    supabase.auth.getUser().then(({ data }) => { setUserId(data.user?.id ?? null); });
+  }, [supabase]);
 
   const fetchData = useCallback(async () => {
     setLoading(true);
@@ -25,7 +30,7 @@ export default function LlmProvidersPage() {
 
   const columns = rows.length > 0 ? Object.keys(rows[0]) : [];
   const editableColumns = columns.filter(
-    (c) => !["id", "created_datetime_utc", "modified_datetime_utc", "created_at", "updated_at"].includes(c)
+    (c) => !["id", "created_datetime_utc", "modified_datetime_utc", "created_at", "updated_at", "created_by_user_id", "modified_by_user_id"].includes(c)
   );
 
   const filtered = search
@@ -102,8 +107,7 @@ export default function LlmProvidersPage() {
           initialValues={{}}
           onClose={() => setShowCreate(false)}
           onSave={async (values) => {
-            const now = new Date().toISOString();
-            await supabase.from(TABLE).insert({ ...values, created_datetime_utc: now, modified_datetime_utc: now });
+            await supabase.from(TABLE).insert({ ...values, created_by_user_id: userId, modified_by_user_id: userId });
             fetchData();
           }}
         />
@@ -115,7 +119,7 @@ export default function LlmProvidersPage() {
           initialValues={editRow}
           onClose={() => setEditRow(null)}
           onSave={async (values) => {
-            await supabase.from(TABLE).update({ ...values, modified_datetime_utc: new Date().toISOString() }).eq("id", editRow.id);
+            await supabase.from(TABLE).update({ ...values, modified_by_user_id: userId }).eq("id", editRow.id);
             fetchData();
           }}
         />
