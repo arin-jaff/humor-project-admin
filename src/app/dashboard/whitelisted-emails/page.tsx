@@ -13,7 +13,7 @@ export default function WhitelistedEmailsPage() {
   const [deleteRow, setDeleteRow] = useState<Record<string, unknown> | null>(null);
   const [userId, setUserId] = useState<string | null>(null);
 
-  const TABLE = "whitelisted_email_addresses";
+  const TABLE = "whitelist_email_addresses";
 
   useEffect(() => {
     supabase.auth.getUser().then(({ data }) => { setUserId(data.user?.id ?? null); });
